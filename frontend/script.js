@@ -42,7 +42,7 @@ const myOrdersPaginationDiv = document.getElementById('myOrdersPagination');
 
 // --- 全局状态 ---
 let cart = []; // 购物车状态
-let currentUser = null; // 当前登录用户信息 { id, username, role, access_token }
+let currentUser = null; // 当前登录用户信息 { id, username, role, access_token, full_name }
 let myOrdersCurrentPage = 1;
 const MY_ORDERS_PER_PAGE = 5;
 
@@ -51,6 +51,7 @@ const MY_ORDERS_PER_PAGE = 5;
 function showModal(message, isError = false) {
     modalMessageText.textContent = message;
     modalMessageText.style.color = isError ? '#ef4444' : '#10b981'; // Tailwind red-500 or emerald-500
+    modalMessageText.style.textAlign = 'center'; // 确保消息居中
     messageModal.style.display = 'flex'; // 使用flex居中
 }
 
@@ -75,14 +76,18 @@ function getAuthToken() {
     return localStorage.getItem('accessToken');
 }
 
-// 保存Token
-function saveAuthToken(token) {
+// 保存Token和用户信息
+function saveAuthData(token, user) {
     localStorage.setItem('accessToken', token);
+    localStorage.setItem('currentUser', JSON.stringify(user)); // 保存整个用户信息对象
+    currentUser = user; // 更新全局变量
 }
 
-// 清除Token
-function clearAuthToken() {
+// 清除Token和用户信息
+function clearAuthData() {
     localStorage.removeItem('accessToken');
+    localStorage.removeItem('currentUser');
+    currentUser = null; // 清除全局变量
 }
 
 // 封装 fetch 请求，自动添加 Authorization 头
@@ -103,11 +108,29 @@ async function fetchWithAuth(url, options = {}) {
 // --- 用户界面更新 ---
 function updateLoginStateUI() {
     const token = getAuthToken();
+    // 尝试从 localStorage 加载 currentUser，如果全局变量中没有的话
+    if (!currentUser && token) {
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            currentUser = JSON.parse(storedUser);
+        }
+    }
+    
     if (token && currentUser) { // 确保currentUser也已设置
-        userAuthSection.innerHTML = `
+        let authButtonsHtml = `
             <button id="myOrdersBtn" class="button button-secondary text-sm py-2 px-3 mr-2"><i class="fas fa-receipt mr-1"></i>我的订单</button>
+        `;
+        // 如果是管理员，添加管理后台入口
+        if (currentUser.role === 'admin') {
+            authButtonsHtml += `
+                <a href="admin.html" class="button bg-purple-700 hover:bg-purple-800 text-sm py-2 px-3 mr-2"><i class="fas fa-user-shield mr-1"></i>管理后台</a>
+            `;
+        }
+        authButtonsHtml += `
             <button id="logoutBtn" class="button button-danger text-sm py-2 px-3"><i class="fas fa-sign-out-alt mr-1"></i>登出</button>
         `;
+        userAuthSection.innerHTML = authButtonsHtml;
+
         userInfoSection.style.display = 'block';
         loggedInUsernameSpan.textContent = currentUser.full_name || currentUser.username;
         userOrdersSection.style.display = 'block'; // 显示历史订单区域
@@ -119,7 +142,9 @@ function updateLoginStateUI() {
             fetchMyOrders(myOrdersCurrentPage); // 点击时也刷新一次
         });
         placeOrderBtn.disabled = false; // 允许下单
-        placeOrderBtn.classList.remove('disabled');
+        placeOrderBtn.classList.remove('disabled', 'opacity-50', 'cursor-not-allowed');
+        placeOrderBtn.title = "";
+
 
     } else {
         userAuthSection.innerHTML = `
@@ -135,7 +160,7 @@ function updateLoginStateUI() {
         document.getElementById('showLoginBtn').addEventListener('click', () => openAuthModal('loginModal'));
         document.getElementById('showRegisterBtn').addEventListener('click', () => openAuthModal('registerModal'));
         placeOrderBtn.disabled = true; // 未登录时禁止下单
-        placeOrderBtn.classList.add('disabled');
+        placeOrderBtn.classList.add('disabled', 'opacity-50', 'cursor-not-allowed');
         placeOrderBtn.title = "请先登录再下单";
     }
 }
@@ -193,8 +218,7 @@ async function handleLogin(event) {
         });
         const result = await response.json();
         if (response.ok) {
-            saveAuthToken(result.access_token);
-            currentUser = result.user; 
+            saveAuthData(result.access_token, result.user); // 保存Token和用户信息
             showModal('登录成功！');
             closeAuthModal('loginModal');
             updateLoginStateUI();
@@ -208,8 +232,7 @@ async function handleLogin(event) {
 }
 
 function handleLogout() {
-    clearAuthToken();
-    currentUser = null;
+    clearAuthData(); // 清除Token和用户信息
     showModal('您已成功登出。');
     updateLoginStateUI();
     cart = []; 
@@ -219,20 +242,27 @@ function handleLogout() {
 async function fetchUserProfileOnLoad() {
     const token = getAuthToken();
     if (token) {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/auth/me`);
-            if (response.ok) {
-                currentUser = await response.json();
-            } else if (response.status === 401) { 
-                clearAuthToken(); 
-                currentUser = null;
-            } else {
-                console.error('获取用户信息失败:', response.statusText);
-                currentUser = null; 
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            currentUser = JSON.parse(storedUser);
+        } else {
+            // 如果本地没有用户信息，但有token，尝试从后端获取
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/auth/me`);
+                if (response.ok) {
+                    const userProfile = await response.json();
+                    // 后端返回的profile可能不包含token，所以我们只更新用户信息
+                    // token依然使用localStorage中已有的
+                    saveAuthData(token, userProfile); // 更新用户信息到localStorage和全局变量
+                } else if (response.status === 401) { 
+                    clearAuthData(); 
+                } else {
+                    console.error('获取用户信息失败:', response.statusText);
+                    // 不清除token，可能只是临时网络问题，但currentUser会是null
+                }
+            } catch (error) {
+                console.error('请求用户信息时出错:', error);
             }
-        } catch (error) {
-            console.error('请求用户信息时出错:', error);
-            currentUser = null;
         }
     }
     updateLoginStateUI(); 
@@ -260,12 +290,10 @@ function renderMenu(menu) {
         return;
     }
     menu.forEach(item => {
-        // **** 添加健壮性检查 ****
         if (!item || typeof item.name === 'undefined' || typeof item.price === 'undefined') {
             console.warn('检测到无效的菜单项数据，已跳过渲染:', item);
-            return; // 跳过这个损坏的或不完整的项
+            return; 
         }
-        // **** 检查结束 ****
 
         const itemDiv = document.createElement('div');
         itemDiv.className = 'menu-item'; 
@@ -300,7 +328,6 @@ function addToCart(id, name, price, quantityInputId) {
         showModal('请输入有效的数量!', true);
         return;
     }
-    // 确保 name 是一个字符串
     const itemName = (typeof name === 'string' || name instanceof String) ? name : '未知菜品';
 
 
@@ -347,12 +374,10 @@ function renderCart() {
         cartItemsDiv.innerHTML = '<p class="text-gray-500 p-2">餐车是空的。</p>';
     } else {
         cart.forEach(item => {
-            // **** 添加健壮性检查 ****
             if (!item || typeof item.name === 'undefined' || typeof item.price === 'undefined') {
                 console.warn('购物车中检测到无效的菜品数据，已跳过渲染:', item);
-                return; // 跳过这个损坏的或不完整的项
+                return; 
             }
-            // **** 检查结束 ****
             const itemTotal = item.price * item.quantity;
             total += itemTotal;
             const cartItemDiv = document.createElement('div');
@@ -473,12 +498,10 @@ function renderMyOrders(orders) {
         return;
     }
     orders.forEach(order => {
-        // **** 添加健壮性检查 ****
         if (!order || typeof order.id === 'undefined' || typeof order.total_amount === 'undefined') {
             console.warn('检测到无效的历史订单数据，已跳过渲染:', order);
             return; 
         }
-        // **** 检查结束 ****
         const orderDiv = document.createElement('div');
         orderDiv.className = 'order-history-item p-4 border rounded-md shadow-sm hover:shadow-md transition-shadow'; 
         const orderTime = new Date(order.order_time).toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -558,12 +581,10 @@ async function fetchAndShowOrderDetails(orderId) {
         const response = await fetchWithAuth(`${API_BASE_URL}/orders/${orderId}`);
         if (response.ok) {
             const orderDetails = await response.json();
-            // **** 添加健壮性检查 ****
             if (!orderDetails || typeof orderDetails.id === 'undefined') {
                 showModal('无法获取有效的订单详情数据。', true);
                 return;
             }
-            // **** 检查结束 ****
             let detailsHtml = `<h4 class="text-xl font-semibold mb-3 text-purple-600">订单 #${orderDetails.id} 详情</h4>`;
             detailsHtml += `<p><strong>下单时间:</strong> ${new Date(orderDetails.order_time).toLocaleString('zh-CN')}</p>`;
             detailsHtml += `<p><strong>总金额:</strong> ¥${parseFloat(orderDetails.total_amount).toFixed(2)}</p>`;
@@ -580,13 +601,11 @@ async function fetchAndShowOrderDetails(orderId) {
             detailsHtml += `<h5 class="text-md font-semibold mt-3 mb-1">订单项目:</h5><ul class="list-disc pl-5 text-sm">`;
             if (orderDetails.items && Array.isArray(orderDetails.items)) {
                 orderDetails.items.forEach(item => {
-                    // **** 添加健壮性检查 ****
                     if (!item || typeof item.item_name === 'undefined' || typeof item.quantity === 'undefined' || typeof item.unit_price === 'undefined' || typeof item.subtotal === 'undefined') {
                         console.warn('订单详情中检测到无效的订单项数据:', item);
                         detailsHtml += `<li>无效的订单项数据</li>`;
-                        return; // 跳过这个损坏的项
+                        return; 
                     }
-                    // **** 检查结束 ****
                     detailsHtml += `<li>${item.item_name} x ${item.quantity} (单价: ¥${parseFloat(item.unit_price).toFixed(2)}) - 小计: ¥${parseFloat(item.subtotal).toFixed(2)}`;
                     if(item.special_requests) detailsHtml += `<br><small class="text-gray-600">特殊要求: ${item.special_requests}</small>`;
                     detailsHtml += `</li>`;
@@ -599,7 +618,7 @@ async function fetchAndShowOrderDetails(orderId) {
             modalMessageText.innerHTML = detailsHtml; 
             modalMessageText.style.textAlign = 'left'; 
             modalMessageText.style.color = 'inherit'; 
-            showModal(''); // 调用showModal来显示模态框，消息内容已由innerHTML设置
+            showModal(''); 
         } else {
             const errorResult = await response.json();
             showModal(`获取订单详情失败: ${errorResult.error || response.statusText}`, true);
@@ -686,4 +705,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (placeOrderBtn) placeOrderBtn.addEventListener('click', placeOrder);
     if (clearCartBtn) clearCartBtn.addEventListener('click', clearCart);
     if (getSuggestionBtn) getSuggestionBtn.addEventListener('click', fetchRecipeSuggestion);
+
+    // 处理URL hash跳转到登录
+    if(window.location.hash === '#login' && !getAuthToken()){
+        openAuthModal('loginModal');
+    }
 });
+
+// 使函数在全局可访问，以便HTML中的onclick可以调用
+window.addToCart = addToCart;
+window.removeFromCart = removeFromCart;
+window.updateCartQuantity = updateCartQuantity;
+window.updateSpecialRequest = updateSpecialRequest;
+window.fetchAndShowOrderDetails = fetchAndShowOrderDetails;
+window.closeModal = closeModal; // 确保通用关闭按钮可用
+window.closeAuthModal = closeAuthModal; // 确保认证模态框关闭按钮可用

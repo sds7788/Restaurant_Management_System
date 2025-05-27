@@ -48,6 +48,7 @@ body {
 
 .button-secondary {
     background-color: #a855f7; /* Tailwind purple-500 */
+    color: white;
 }
 .button-secondary:hover {
     background-color: #9333ea; /* Tailwind purple-600 */
@@ -58,6 +59,7 @@ body {
 
 .button-danger {
     background-color: #ef4444; /* Tailwind red-500 */
+    color: white;
 }
 .button-danger:hover {
     background-color: #dc2626; /* Tailwind red-600 */
@@ -172,32 +174,44 @@ body {
 }
 
 
-/* 模态框 */
+/* 模态框 (用户端) */
 .modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.6); /* 加深背景遮罩 */
-    backdrop-filter: blur(3px); /* 轻微模糊背景 */
-    padding-top: 5vh; /* 调整模态框垂直位置 */
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
+    backdrop-filter: blur(3px); /* Light blur effect */
+    padding-top: 5vh; /* Adjust vertical position */
+    align-items: center; /* For flex display */
+    justify-content: center; /* For flex display */
 }
+
 
 .modal-content {
     background-color: #fff;
-    margin: auto; /* 水平居中 */
-    padding: 2rem; /* 增加内边距 */
-    border: none; /* 移除边框 */
+    margin: auto; /* Horizontal centering for non-flex .modal */
+    padding: 2rem; /* Increase padding */
+    border: none; /* Remove border */
     width: 90%;
-    max-width: 480px;
+    max-width: 480px; /* Max width for login/register forms */
     border-radius: 0.5rem; /* Tailwind rounded-lg */
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); /* Tailwind shadow-2xl */
-    position: relative; /* 为了关闭按钮定位 */
+    position: relative; /* For close button positioning */
+    text-align: center; /* Center content by default */
 }
+
+.modal-content h3 { /* Center modal titles */
+    text-align: center;
+}
+.modal-content form div label { /* Align form labels to the left */
+    text-align: left;
+}
+
 
 .close-button {
     position: absolute;
@@ -214,7 +228,7 @@ body {
     color: #374151; /* Tailwind gray-700 */
 }
 
-/* 历史订单样式 */
+/* 历史订单样式 (用户端) */
 #userOrdersSection .order-history-item {
     border: 1px solid #e5e7eb; /* Tailwind gray-200 */
     padding: 1rem;
@@ -228,33 +242,83 @@ body {
     font-weight: 600;
     color: #4f46e5; /* Tailwind indigo-600 */
 }
+/* 订单状态颜色 (用户端) - 与 admin.js 中的 statusClassMapping 视觉上对应 */
 #userOrdersSection .order-status-pending { color: #f59e0b; /* Tailwind amber-500 */ }
-#userOrdersSection .order-status-confirmed { color: #10b981; /* Tailwind emerald-500 */ }
-#userOrdersSection .order-status-preparing { color: #3b82f6; /* Tailwind blue-500 */ }
+#userOrdersSection .order-status-confirmed { color: #3b82f6; /* Tailwind blue-500 */ } /* 对应 admin 的 blue */
+#userOrdersSection .order-status-preparing { color: #6366f1; /* Tailwind indigo-500 */ } /* 对应 admin 的 indigo */
+#userOrdersSection .order-status-delivered { color: #14b8a6; /* Tailwind teal-500 */ } /* 对应 admin 的 teal */
 #userOrdersSection .order-status-completed { color: #22c55e; /* Tailwind green-500 */ }
 #userOrdersSection .order-status-cancelled { color: #ef4444; /* Tailwind red-500 */ }
-#userOrdersSection .order-status-delivered { color: #84cc16; /* Tailwind lime-500 */ }
+
 
 #myOrdersPagination button {
     margin: 0 0.25rem;
 }
 
+/* Admin Page Specific Styles */
+.active-nav-link {
+    background-color: #5b21b6; /* Tailwind purple-700 or similar */
+    color: white;
+    font-weight: 600;
+}
+.nav-link:not(.active-nav-link):hover {
+    background-color: #4c1d95; /* Darker purple for hover on non-active */
+}
+
+/* Admin table styles - Tailwind should handle most, but can add specifics */
+#adminContentArea table th {
+    background-color: #f9fafb; /* Tailwind gray-50 */
+}
+#adminContentArea table td {
+    vertical-align: middle;
+}
+
+/* 订单状态颜色 (管理员端, 用于表格内联span) */
+/* 这些类名由 admin.js 中的 statusClassMapping 函数动态添加 */
+.order-status-bg-yellow-100 { background-color: #fef9c3; } .order-status-text-yellow-800 { color: #854d0e; }
+.order-status-bg-blue-100 { background-color: #dbeafe; } .order-status-text-blue-800 { color: #1e40af; }
+.order-status-bg-indigo-100 { background-color: #e0e7ff; } .order-status-text-indigo-800 { color: #3730a3; }
+.order-status-bg-teal-100 { background-color: #ccfbf1; } .order-status-text-teal-800 { color: #134e4a; }
+.order-status-bg-green-100 { background-color: #dcfce7; } .order-status-text-green-800 { color: #166534; }
+.order-status-bg-red-100 { background-color: #fee2e2; } .order-status-text-red-800 { color: #991b1b; }
+.order-status-bg-slate-100 { background-color: #f1f5f9; } .order-status-text-slate-800 { color: #1e293b; }
+
+
 /* 响应式调整 */
 @media (max-width: 768px) {
-    .container {
+    .container { /* 用户端 */
         margin: 10px;
         padding: 1rem;
     }
-    h1 { font-size: 2rem; }
+    h1 { font-size: 2rem; } /* 通用调整，可能影响两端 */
     h2 { font-size: 1.5rem; }
-    .modal-content {
+
+    .modal-content { /* 用户端模态框 */
         width: 95%;
         padding: 1.5rem;
     }
-    .grid.md\:grid-cols-3 {
+    .grid.md\:grid-cols-3 { /* 用户端主页布局 */
         grid-template-columns: 1fr;
     }
-    .md\:col-span-2 {
+    .md\:col-span-2 { /* 用户端主页布局 */
         grid-column: span 1 / span 1;
+    }
+
+    /* Admin page responsive adjustments */
+    .flex.h-screen { /* Admin page main layout */
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+    aside.w-64 { /* Admin sidebar */
+        width: 100%;
+        height: auto;
+        padding-bottom: 1rem; /* Add some padding at the bottom */
+    }
+    main.flex-1 { /* Admin main content */
+        padding: 1rem; /* Reduce padding on mobile */
+    }
+    #adminContentTitle {
+        font-size: 1.75rem; /* Reduce title size on mobile */
     }
 }

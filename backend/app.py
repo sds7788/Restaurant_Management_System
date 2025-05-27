@@ -1,24 +1,22 @@
 # backend/app.py
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import backend.database as db
-import backend.llm_service as llm
-from datetime import datetime, timedelta # 用于JWT
-import jwt # PyJWT库，需要 pip install PyJWT bcrypt
-import bcrypt # 用于密码哈希
+import backend.database as db # 使用相对导入
+import backend.llm_service as llm # 使用相对导入
+from datetime import datetime, timedelta 
+import jwt 
+import bcrypt 
+from functools import wraps
 
 # --- 应用配置 ---
 app = Flask(__name__)
-CORS(app) # 允许所有来源的跨域请求
+CORS(app) 
 
-# JWT 配置 (在生产环境中应使用更安全的密钥并从环境变量读取)
-app.config['SECRET_KEY'] = 'your-very-secret-and-strong-key' # 必须修改为一个强密钥!
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1) # Token有效期1小时
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30) # Refresh Token有效期30天 (如果使用)
+app.config['SECRET_KEY'] = 'your-very-secret-and-strong-key' 
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 
 # --- 辅助函数：JWT 和 权限装饰器 ---
-from functools import wraps
-
 def token_required(f):
     """装饰器：检查请求头中是否包含有效的JWT"""
     @wraps(f)
@@ -33,7 +31,6 @@ def token_required(f):
             return jsonify({"message": "Token is missing!"}), 401
 
         try:
-            # 解码Token，获取当前用户信息
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
             current_user = db.get_user_by_id(data['user_id'])
             if not current_user:
@@ -43,14 +40,13 @@ def token_required(f):
         except jwt.InvalidTokenError:
             return jsonify({"message": "Token is invalid!"}), 401
         
-        # 将当前用户信息传递给被装饰的函数
         return f(current_user, *args, **kwargs)
     return decorated
 
 def admin_required(f):
     """装饰器：检查用户是否为管理员"""
     @wraps(f)
-    @token_required # admin_required 必须在 token_required 之后
+    @token_required 
     def decorated(current_user, *args, **kwargs):
         if current_user['role'] != 'admin':
             return jsonify({"message": "Admin privilege required!"}), 403
@@ -73,16 +69,15 @@ def register_user():
 
     username = data['username']
     password = data['password']
-    role = data.get('role', 'customer') # 默认为顾客，前端可以不传或传指定角色
+    role = data.get('role', 'customer') 
     full_name = data.get('full_name')
     email = data.get('email')
     phone = data.get('phone')
 
     if db.get_user_by_username(username):
         return jsonify({"error": "用户名已存在"}), 409
-    if email and db.execute_query("SELECT id FROM users WHERE email = %s", (email,), fetch_one=True): # 简单检查邮箱是否已存在
+    if email and db.execute_query("SELECT id FROM users WHERE email = %s", (email,), fetch_one=True):
         return jsonify({"error": "邮箱已被注册"}), 409
-
 
     user_id = db.create_user(username, password, role, full_name, email, phone)
     if user_id:
@@ -106,10 +101,8 @@ def login_user():
     if not user or not db.verify_password(password, user['password_hash']):
         return jsonify({"error": "用户名或密码错误"}), 401
 
-    # 更新最后登录时间
     db.update_user_last_login(user['id'])
 
-    # 生成JWT
     token_payload = {
         'user_id': user['id'],
         'username': user['username'],
@@ -121,7 +114,7 @@ def login_user():
     return jsonify({
         "message": "登录成功",
         "access_token": access_token,
-        "user": { # 可以选择性返回一些用户信息给前端
+        "user": { 
             "id": user['id'],
             "username": user['username'],
             "role": user['role'],
@@ -133,13 +126,11 @@ def login_user():
 @token_required
 def get_current_user_profile(current_user):
     """获取当前登录用户的个人信息 (需要Token)"""
-    # current_user 是由 @token_required 装饰器注入的
-    # 从中移除敏感信息，如 password_hash
     profile_data = {key: value for key, value in current_user.items() if key != 'password_hash'}
     return jsonify(profile_data), 200
 
 
-# == 菜品和分类API (基本不变，但添加菜品可能需要管理员权限) ==
+# == 菜品和分类API ==
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
     """获取所有菜品分类"""
@@ -152,9 +143,13 @@ def get_categories():
 
 @app.route('/api/menu', methods=['GET'])
 def get_menu():
-    """获取所有可用菜品"""
+    """获取所有菜品，管理员可获取包括不可用的菜品"""
     try:
-        menu_items = db.get_all_menu_items()
+        # MODIFIED: 检查 include_unavailable 参数，主要为管理后台服务
+        include_unavailable_str = request.args.get('include_unavailable', 'false').lower()
+        include_unavailable = include_unavailable_str == 'true'
+        
+        menu_items = db.get_all_menu_items(include_unavailable=include_unavailable)
         return jsonify(menu_items), 200
     except Exception as e:
         app.logger.error(f"获取菜单失败: {e}")
@@ -163,7 +158,6 @@ def get_menu():
 @app.route('/api/menu/<int:item_id>', methods=['GET'])
 def get_menu_item(item_id):
     """获取单个菜品详情"""
-    # ... (代码与之前版本类似，此处省略以减少篇幅)
     try:
         item = db.get_menu_item_by_id(item_id)
         if item:
@@ -176,12 +170,11 @@ def get_menu_item(item_id):
 
 
 @app.route('/api/admin/menu', methods=['POST'])
-@admin_required # 只有管理员可以添加菜品
+@admin_required 
 def admin_add_new_menu_item(current_admin_user):
     """管理员添加新菜品"""
     try:
         data = request.get_json()
-        # 参数校验 (name, price, category_id 是必须的)
         required_fields = ['name', 'price', 'category_id']
         if not data or not all(k in data for k in required_fields):
             return jsonify({"error": f"缺少必要参数: {', '.join(required_fields)}"}), 400
@@ -201,7 +194,6 @@ def admin_add_new_menu_item(current_admin_user):
         except ValueError as ve:
             return jsonify({"error": "价格或分类ID格式无效", "message": str(ve)}), 400
 
-        # 检查分类是否存在
         if not db.get_category_by_id(category_id):
             return jsonify({"error": f"分类ID {category_id} 不存在"}), 404
 
@@ -215,24 +207,24 @@ def admin_add_new_menu_item(current_admin_user):
         app.logger.error(f"管理员 {current_admin_user.get('username', 'N/A')} 添加菜品失败: {e}", exc_info=True)
         return jsonify({"error": "添加菜品时发生服务器错误", "message": str(e)}), 500
 
-# TODO: 实现管理员修改菜品、删除菜品API (@admin_required)
+# TODO: 实现管理员修改菜品 (@admin_required PUT /api/admin/menu/<item_id>)
+# TODO: 实现管理员删除菜品 (@admin_required DELETE /api/admin/menu/<item_id>)
 
-# == 订单API (重要修改) ==
+# == 订单API ==
 @app.route('/api/orders', methods=['POST'])
-@token_required # 用户下单需要登录 (也可以允许匿名，但逻辑会更复杂)
+@token_required 
 def place_order(current_user):
     """创建新订单 (用户必须登录)"""
     try:
         data = request.get_json()
-        if not data or not data.get('items'): # customer_name 不再是必须，从token获取用户信息
+        if not data or not data.get('items'): 
             return jsonify({"error": "缺少必要参数 (items)"}), 400
 
-        order_items_data_frontend = data['items'] # 期望格式: [{'menu_item_id': id, 'quantity': qty, 'special_requests': 'text'}, ...]
+        order_items_data_frontend = data['items'] 
         
         if not isinstance(order_items_data_frontend, list) or not order_items_data_frontend:
             return jsonify({"error": "订单项目(items)必须是非空列表"}), 400
 
-        # --- 后端重新计算价格和构建订单项 ---
         detailed_items_for_db = []
         total_amount = 0
         for item_data in order_items_data_frontend:
@@ -250,11 +242,11 @@ def place_order(current_user):
             except ValueError:
                 return jsonify({"error": f"菜品ID {menu_item_id} 的数量格式无效"}), 400
 
-            menu_item_db = db.get_menu_item_by_id(menu_item_id) # 从数据库获取菜品信息
+            menu_item_db = db.get_menu_item_by_id(menu_item_id) 
             if not menu_item_db or not menu_item_db['is_available']:
                 return jsonify({"error": f"菜品 '{menu_item_db.get('name', menu_item_id)}' 未找到或不可用"}), 404
             
-            unit_price = menu_item_db['price'] # 使用数据库中的当前价格作为单价
+            unit_price = menu_item_db['price'] 
             subtotal = unit_price * quantity
             total_amount += subtotal
             
@@ -265,11 +257,10 @@ def place_order(current_user):
                 'subtotal': subtotal,
                 'special_requests': special_requests
             })
-        # --- 价格计算结束 ---
 
         order_id = db.create_order(
-            user_id=current_user['id'], # 从Token中获取用户ID
-            customer_name=current_user.get('full_name', current_user['username']), # 优先用全名
+            user_id=current_user['id'], 
+            customer_name=current_user.get('full_name', current_user['username']), 
             total_amount=total_amount,
             items_data=detailed_items_for_db,
             payment_method=data.get('payment_method'),
@@ -296,7 +287,7 @@ def get_my_orders(current_user):
         per_page = request.args.get('per_page', 10, type=int)
         if page < 1: page = 1
         if per_page < 1: per_page = 1
-        if per_page > 100: per_page = 100 # 防止一次请求过多数据
+        if per_page > 100: per_page = 100 
 
         orders_data = db.get_orders_by_user_id(current_user['id'], page, per_page)
         return jsonify(orders_data), 200
@@ -305,7 +296,7 @@ def get_my_orders(current_user):
         return jsonify({"error": "获取历史订单失败", "message": str(e)}), 500
 
 @app.route('/api/orders/<int:order_id>', methods=['GET'])
-@token_required # 用户只能看自己的订单，管理员可以看所有（下面有专门的管理员接口）
+@token_required 
 def get_single_order(current_user, order_id):
     """获取单个订单详情 (用户只能查看自己的，除非是管理员)"""
     try:
@@ -313,7 +304,6 @@ def get_single_order(current_user, order_id):
         if not order:
             return jsonify({"error": "订单未找到"}), 404
         
-        # 权限检查：如果不是管理员，且订单不属于当前用户
         if current_user['role'] != 'admin' and order.get('user_id') != current_user['id']:
             return jsonify({"error": "无权访问此订单"}), 403
             
@@ -331,7 +321,7 @@ def admin_get_all_orders(current_admin_user):
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         status_filter = request.args.get('status')
-        user_id_filter = request.args.get('user_id', type=int)
+        user_id_filter = request.args.get('user_id', type=int) # 如果传来非数字会是None
         sort_by = request.args.get('sort_by', 'order_time')
         sort_order = request.args.get('sort_order', 'DESC')
 
@@ -354,7 +344,6 @@ def admin_update_order_status(current_admin_user, order_id):
     if not new_status:
         return jsonify({"error": "缺少新状态 (status) 参数"}), 400
     
-    # 你可能需要在这里验证 new_status 是否是合法的状态值
     valid_statuses = ['pending', 'confirmed', 'preparing', 'completed', 'cancelled', 'delivered']
     if new_status not in valid_statuses:
         return jsonify({"error": f"无效的订单状态: {new_status}. 合法状态为: {', '.join(valid_statuses)}"}), 400
@@ -365,17 +354,15 @@ def admin_update_order_status(current_admin_user, order_id):
             app.logger.info(f"管理员 {current_admin_user['username']} 更新订单 {order_id} 状态为 {new_status} 成功")
             return jsonify({"message": f"订单 {order_id} 状态已更新为 {new_status}"}), 200
         else:
-            # database.py 中的函数会打印更详细的错误，这里返回通用错误
-            return jsonify({"error": f"更新订单 {order_id} 状态失败，订单可能不存在或数据库错误"}), 404 # 或 500
+            return jsonify({"error": f"更新订单 {order_id} 状态失败，订单可能不存在或数据库错误"}), 404 
     except Exception as e:
         app.logger.error(f"管理员 {current_admin_user['username']} 更新订单 {order_id} 状态失败: {e}", exc_info=True)
         return jsonify({"error": "更新订单状态时发生服务器错误", "message": str(e)}), 500
 
 
-# == LLM 餐谱建议API (保持不变) ==
+# == LLM 餐谱建议API ==
 @app.route('/api/recipe-suggestion', methods=['POST'])
 def get_recipe_suggestion():
-    # ... (代码与之前版本相同，此处省略)
     try:
         data = request.get_json()
         current_dishes = data.get('current_dishes', []) 
@@ -393,30 +380,22 @@ def get_recipe_suggestion():
 
 if __name__ == '__main__':
     import logging
-    # 配置日志记录到文件和控制台
-    # logging.basicConfig(level=logging.INFO) # 基础配置，只输出到控制台
-
-    # 创建一个logger
-    app_logger = logging.getLogger() # 获取root logger
+    app_logger = logging.getLogger() 
     app_logger.setLevel(logging.INFO)
 
-    # 创建控制台handler并设置级别
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     
-    # 创建文件handler并设置级别
-    file_handler = logging.FileHandler('restaurant_app.log', encoding='utf-8') # 指定UTF-8编码
+    file_handler = logging.FileHandler('restaurant_app.log', encoding='utf-8') 
     file_handler.setLevel(logging.INFO)
 
-    # 创建formatter并将其添加到handler
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)')
     console_handler.setFormatter(formatter)
     file_handler.setFormatter(formatter)
 
-    # 将handler添加到logger
-    if not app_logger.handlers: # 防止重复添加handlers
+    if not app_logger.handlers: 
         app_logger.addHandler(console_handler)
         app_logger.addHandler(file_handler)
     
-    app.logger.info("餐饮管理系统后端API启动...") # 使用app.logger记录
-    app.run(host='0.0.0.0', port=5000, debug=True) # debug=True仅用于开发
+    app.logger.info("餐饮管理系统后端API启动...") 
+    app.run(host='0.0.0.0', port=5000, debug=True)
