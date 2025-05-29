@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -91,6 +92,7 @@
             <div class="modal-content">
                 <span class="close-button" onclick="closeAuthModal('loginModal')">&times;</span>
                 <h3 class="text-2xl font-semibold mb-6 text-purple-700">用户登录</h3>
+
                 <form id="loginForm" class="space-y-4">
                     <div>
                         <label for="loginUsername" class="block text-sm font-medium text-left text-gray-700">用户名:</label>
@@ -99,9 +101,11 @@
                     <div>
                         <label for="loginPassword" class="block text-sm font-medium text-left text-gray-700">密码:</label>
                         <input type="password" id="loginPassword" name="password" required class="mt-1 block w-full input-field">
+                        <div id="loginError" class="text-red-600 text-sm mt-1" style="display: none;"></div>
                     </div>
                     <button type="submit" class="button w-full py-2.5">登录</button>
                 </form>
+
                 <p class="mt-4 text-sm">还没有账户? <a href="#" id="showRegisterModalLink" class="text-purple-600 hover:underline">立即注册</a></p>
             </div>
         </div>
