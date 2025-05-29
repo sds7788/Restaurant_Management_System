@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>餐厅管理后台</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-slate-100 font-inter">
+    <div class="flex h-screen bg-slate-100">
+        <aside class="w-64 bg-slate-800 text-white p-6 space-y-4 shadow-lg">
+            <div class="text-2xl font-semibold text-center text-purple-400">管理后台</div>
+            <nav class="mt-8">
+                <a href="#" id="navDashboard" class="nav-link active-nav-link block py-2.5 px-4 rounded transition duration-200 hover:bg-purple-600 hover:text-white flex items-center">
+                    <i class="fas fa-tachometer-alt mr-3"></i>仪表盘
+                </a>
+                <a href="#" id="navMenuManagement" class="nav-link block py-2.5 px-4 rounded transition duration-200 hover:bg-purple-600 hover:text-white flex items-center">
+                    <i class="fas fa-utensils mr-3"></i>菜品管理
+                </a>
+                <a href="#" id="navOrderManagement" class="nav-link block py-2.5 px-4 rounded transition duration-200 hover:bg-purple-600 hover:text-white flex items-center">
+                    <i class="fas fa-receipt mr-3"></i>订单管理
+                </a>
+                <a href="#" id="navUserManagement" class="nav-link block py-2.5 px-4 rounded transition duration-200 hover:bg-purple-600 hover:text-white flex items-center">
+                    <i class="fas fa-users-cog mr-3"></i>用户管理
+                </a>
+                <a href="#" id="navCategoryManagement" class="nav-link block py-2.5 px-4 rounded transition duration-200 hover:bg-purple-600 hover:text-white flex items-center">
+                    <i class="fas fa-tags mr-3"></i>分类管理
+                </a>
+                <a href="index.html" class="block py-2.5 px-4 rounded transition duration-200 hover:bg-slate-700 text-slate-300 mt-8 flex items-center">
+                    <i class="fas fa-store mr-3"></i>返回用户端
+                </a>
+                <button id="adminLogoutBtn" class="w-full mt-4 button button-danger py-2.5 flex items-center justify-center">
+                    <i class="fas fa-sign-out-alt mr-2"></i>登出
+                </button>
+            </nav>
+            <div class="mt-auto text-center text-xs text-slate-400">
+                <p>当前管理员: <span id="adminUsername" class="font-semibold">未登录</span></p>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-6 md:p-10 overflow-y-auto">
+            <header class="mb-8">
+                <h1 id="mainContentTitle" class="text-3xl font-bold text-slate-700">仪表盘</h1>
+            </header>
+            
+            <div id="adminContentArea">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <p class="text-slate-600">欢迎来到管理后台。请从左侧导航选择一个操作项。</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="adminModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50" style="display: none;">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="adminModalTitle" class="text-xl font-semibold text-slate-700">提示</h3>
+                <button id="closeAdminModalBtn" class="text-slate-500 hover:text-slate-700">
+                    <i class="fas fa-times fa-lg"></i>
+                </button>
+            </div>
+            <div id="adminModalBody" class="text-slate-600">
+                </div>
+            <div id="adminModalFooter" class="mt-6 text-right space-x-3">
+                </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
