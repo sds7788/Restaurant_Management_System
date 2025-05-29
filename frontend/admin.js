@@ -29,7 +29,10 @@ let allCategoriesCache = [];
 let currentEditingItemId = null;
 let ordersCurrentPage = 1; // MODIFIED: 移到全局，方便各函数访问
 const ORDERS_PER_PAGE_ADMIN = 10;
-
+function formatPrice(value) {
+    const num = parseFloat(value);
+    return isNaN(num) ? '0.00' : num.toFixed(2);
+}
 // --- 辅助函数 ---
 function showAdminModal(title, bodyContent, footerButtons = [{ text: '关闭', class: 'button-secondary', action: closeAdminModal }]) {
     adminModalTitle.textContent = title;
@@ -562,11 +565,12 @@ function renderOrderManagementTable(orders) {
     `;
 
     orders.forEach(order => {
+
         // MODIFIED: 增加对 order 及其属性的防御性检查
         const orderId = order && typeof order.id !== 'undefined' ? order.id : 'N/A';
         const customerName = order && (order.customer_name || order.user_username) ? (order.customer_name || order.user_username) : '匿名用户';
         const orderTime = order && order.order_time ? new Date(order.order_time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
-        const totalAmount = order && typeof order.total_amount === 'number' ? parseFloat(order.total_amount).toFixed(2) : 'N/A';
+        const totalAmount = formatPrice(order?.total_amount);
         const currentStatus = order && order.status ? order.status : 'unknown';
         
         tableHtml += `
@@ -847,3 +851,4 @@ window.confirmDeleteMenuItem = confirmDeleteMenuItem;
 window.showOrderDetailsModal = showOrderDetailsModal;
 window.showUpdateOrderStatusModal = showUpdateOrderStatusModal;
 // handleDeleteMenuItem 和 handleSaveMenuItem 不直接暴露到全局，由确认框或表单提交间接调用
+
