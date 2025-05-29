@@ -209,7 +209,9 @@ async function handleLogin(event) {
         showModal('用户名和密码不能为空！', true);
         return;
     }
-
+    const errorElement = document.getElementById('loginError');
+    errorElement.style.display = 'none';
+    document.getElementById('loginPassword').classList.remove('border-red-500');
     try {
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
@@ -223,11 +225,17 @@ async function handleLogin(event) {
             closeAuthModal('loginModal');
             updateLoginStateUI();
         } else {
-            showModal(`登录失败: ${result.error || '用户名或密码错误'}`, true);
+             errorElement.textContent = result.error || '用户名或密码错误';
+            errorElement.style.display = 'block';
+            document.getElementById('loginPassword').classList.add('border-red-500');
         }
     } catch (error) {
         console.error('登录请求失败:', error);
         showModal('登录请求失败，请检查网络连接。', true);
+         console.error('登录请求失败:', error);
+        errorElement.textContent = '登录请求失败，请检查网络连接';
+        errorElement.style.display = 'block';
+        document.getElementById('loginPassword').classList.add('border-red-500');
     }
 }
 
@@ -585,40 +593,49 @@ async function fetchAndShowOrderDetails(orderId) {
                 showModal('无法获取有效的订单详情数据。', true);
                 return;
             }
-            let detailsHtml = `<h4 class="text-xl font-semibold mb-3 text-purple-600">订单 #${orderDetails.id} 详情</h4>`;
-            detailsHtml += `<p><strong>下单时间:</strong> ${new Date(orderDetails.order_time).toLocaleString('zh-CN')}</p>`;
-            detailsHtml += `<p><strong>总金额:</strong> ¥${parseFloat(orderDetails.total_amount).toFixed(2)}</p>`;
-            detailsHtml += `<p><strong>订单状态:</strong> ${translateOrderStatus(orderDetails.status)}</p>`;
-            detailsHtml += `<p><strong>支付状态:</strong> ${translatePaymentStatus(orderDetails.payment_status)}</p>`;
-            if (orderDetails.user_full_name) {
-                detailsHtml += `<p><strong>顾客:</strong> ${orderDetails.user_full_name} (${orderDetails.user_username || 'N/A'})</p>`;
-            } else {
-                detailsHtml += `<p><strong>顾客:</strong> ${orderDetails.customer_name || '匿名用户'}</p>`;
-            }
-            if(orderDetails.delivery_address) detailsHtml += `<p><strong>配送地址:</strong> ${orderDetails.delivery_address}</p>`;
-            if(orderDetails.notes) detailsHtml += `<p><strong>备注:</strong> ${orderDetails.notes}</p>`;
 
-            detailsHtml += `<h5 class="text-md font-semibold mt-3 mb-1">订单项目:</h5><ul class="list-disc pl-5 text-sm">`;
+         // 新增价格格式化函数
+            const formatPrice = (value) => {
+                const num = parseFloat(value);
+                return isNaN(num) ? '0.00' : num.toFixed(2);
+            };
+              let detailsHtml = `
+                <div class="space-y-3 text-left">
+                    <h4 class="text-xl font-semibold mb-3 text-purple-600">订单 #${orderDetails.id} 详情</h4>
+                    <div class="grid grid-cols-2 gap-2">
+                        <p><strong>下单时间:</strong></p><p>${new Date(orderDetails.order_time).toLocaleString('zh-CN')}</p>
+                        <p><strong>总金额:</strong></p><p>¥${parseFloat(orderDetails.total_amount).toFixed(2)}</p>
+                        <p><strong>订单状态:</strong></p><p>${translateOrderStatus(orderDetails.status)}</p>
+                        <p><strong>支付状态:</strong></p><p>${translatePaymentStatus(orderDetails.payment_status)}</p>
+            ${orderDetails.user_full_name ? 
+                `<p><strong>顾客:</strong></p><p>${orderDetails.user_full_name} (${orderDetails.user_username || 'N/A'})</p>` : 
+                `<p><strong>顾客:</strong></p><p>${orderDetails.customer_name || '匿名用户'}</p>`}
+            ${orderDetails.delivery_address ? `<p><strong>配送地址:</strong></p><p>${orderDetails.delivery_address}</p>` : ''}
+            ${orderDetails.notes ? `<p><strong>备注:</strong></p><p>${orderDetails.notes}</p>` : ''}
+                    </div>
+                    <h5 class="text-md font-semibold mt-3 mb-1">订单项目:</h5>
+                    <ul class="list-disc pl-5 text-sm space-y-2">`;
             if (orderDetails.items && Array.isArray(orderDetails.items)) {
                 orderDetails.items.forEach(item => {
-                    if (!item || typeof item.item_name === 'undefined' || typeof item.quantity === 'undefined' || typeof item.unit_price === 'undefined' || typeof item.subtotal === 'undefined') {
-                        console.warn('订单详情中检测到无效的订单项数据:', item);
-                        detailsHtml += `<li>无效的订单项数据</li>`;
-                        return; 
-                    }
-                    detailsHtml += `<li>${item.item_name} x ${item.quantity} (单价: ¥${parseFloat(item.unit_price).toFixed(2)}) - 小计: ¥${parseFloat(item.subtotal).toFixed(2)}`;
+                    // 添加字段有效性检查
+                    const itemName = item.item_name || '未知商品';
+                    const quantity = item.quantity || 0;
+                    const unitPrice = formatPrice(item.unit_price);
+                    const subtotal = formatPrice(item.subtotal);
+
+                    detailsHtml += `<li>${itemName} x ${quantity} (单价: ¥${unitPrice}) - 小计: ¥${subtotal}`;
                     if(item.special_requests) detailsHtml += `<br><small class="text-gray-600">特殊要求: ${item.special_requests}</small>`;
                     detailsHtml += `</li>`;
                 });
             } else {
                 detailsHtml += `<li>无订单项目信息</li>`;
             }
-            detailsHtml += `</ul>`;
-            
-            modalMessageText.innerHTML = detailsHtml; 
-            modalMessageText.style.textAlign = 'left'; 
-            modalMessageText.style.color = 'inherit'; 
-            showModal(''); 
+            detailsHtml += `</ul></div>`;
+
+            modalMessageText.innerHTML = detailsHtml;
+            modalMessageText.style.textAlign = 'left';  // 强制左对齐
+            modalMessageText.style.color = '#1e293b';   // 恢复默认文字颜色
+            messageModal.style.display = 'flex';        // 确保模态框显示
         } else {
             const errorResult = await response.json();
             showModal(`获取订单详情失败: ${errorResult.error || response.statusText}`, true);
@@ -720,3 +737,4 @@ window.updateSpecialRequest = updateSpecialRequest;
 window.fetchAndShowOrderDetails = fetchAndShowOrderDetails;
 window.closeModal = closeModal; // 确保通用关闭按钮可用
 window.closeAuthModal = closeAuthModal; // 确保认证模态框关闭按钮可用
+
