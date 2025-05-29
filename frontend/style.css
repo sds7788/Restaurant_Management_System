@@ -13,6 +13,16 @@ body {
     max-width: 1280px; /* 稍微增大容器宽度 */
 }
 
+/* 在原有样式基础上添加 */
+.text-red-600 {
+    color: #dc2626;
+}
+
+.input-field:focus {
+    border-color: #9333ea;
+    box-shadow: 0 0 0 1px #9333ea;
+}
+
 /* 按钮统一样式 (Tailwind button类已很好，这里可作为补充) */
 .button {
     display: inline-flex; /* 用于对齐图标和文字 */
