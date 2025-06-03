@@ -347,7 +347,7 @@ function addToCart(id, name, price, quantityInputId) {
     }
     renderCart();
     quantityInput.value = "1";
-    showModal(`${itemName} 已添加到餐车!`);
+    showModal(`${itemName} 已添加到餐车! 请稍后到后台支付！`);
 }
 
 function removeFromCart(itemId) {
@@ -515,17 +515,31 @@ function renderMyOrders(orders) {
         const orderTime = new Date(order.order_time).toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         const statusClass = `order-status-${order.status}`;
 
+       // 合并所有内容到单个模板字符串
         orderDiv.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="order-id text-lg font-semibold text-purple-700">订单号: #${order.id}</span>
                 <span class="text-sm text-gray-500">${orderTime}</span>
             </div>
             <div class="mb-1">总金额: <span class="font-semibold">¥${parseFloat(order.total_amount).toFixed(2)}</span></div>
-            <div class="mb-1">订单状态: <span class="font-semibold ${statusClass}">${translateOrderStatus(order.status)}</span></div>
-            <div class="text-sm">支付状态: <span class="font-medium">${translatePaymentStatus(order.payment_status)}</span></div>
+            <div class="mb-1">订单状态: 
+                <span class="font-semibold order-status-${order.status}">
+                    ${translateOrderStatus(order.status)}
+                </span>
+            </div>
+            <div class="mb-1">支付状态: 
+                <span class="font-medium">${translatePaymentStatus(order.payment_status)}</span>
+                ${order.payment_status === 'unpaid' ? 
+                    `<button class="button button-primary text-xs py-1 px-2 mt-2" 
+                             onclick="handlePayment(${order.id})">
+                        <i class="fas fa-wallet mr-1"></i>立即支付
+                     </button>` : 
+                    `<span class="text-green-600 text-sm">¥${parseFloat(order.total_amount).toFixed(2)} 已支付</span>`}
+            </div>
             <button class="button text-xs py-1 px-2 mt-2" onclick="fetchAndShowOrderDetails(${order.id})">查看详情</button>
         `;
         myOrdersListDiv.appendChild(orderDiv);
+
     });
 }
 
@@ -737,4 +751,3 @@ window.updateSpecialRequest = updateSpecialRequest;
 window.fetchAndShowOrderDetails = fetchAndShowOrderDetails;
 window.closeModal = closeModal; // 确保通用关闭按钮可用
 window.closeAuthModal = closeAuthModal; // 确保认证模态框关闭按钮可用
-
