@@ -1,107 +1,124 @@
 # backend/llm_service.py
-import requests # 用于发送HTTP请求到大模型API
-import json
+import os  # 导入os模块以支持从环境变量读取API密钥
+from openai import OpenAI, APIConnectionError, RateLimitError, APIStatusError  # 导入OpenAI库和相关异常
 
-# 假设Qwen API的配置
-# QWEN_API_URL = "YOUR_QWEN_API_ENDPOINT"  # 替换为实际的Qwen API URL
-# QWEN_API_KEY = "YOUR_QWEN_API_KEY"      # 替换为你的API密钥
+# DeepSeek API 配置
+# 强烈建议将API密钥存储在环境变量中，而不是硬编码在代码里。
+# 例如: DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+# 在运行前，请确保设置了名为 DEEPSEEK_API_KEY 的环境变量。
+# 或者，为了快速测试，您可以临时在此处直接替换下面的占位符：
+DEEPSEEK_API_KEY = "sk-303f28a8f16e4326ad72a7898f0b076f"  # <--- 请替换为您的真实 DeepSeek API Key
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"    # DeepSeek API 的基础 URL
 
-# 注意：实际的API URL和认证方式请参考Qwen官方文档。
-# 这里我们用一个模拟函数代替真实的API调用。
-
+# 为了保持与 app.py 的兼容性，函数名暂时不变
 def get_recipe_suggestion_from_qwen(current_dishes, preferences=""):
     """
-    从Qwen大模型获取餐谱搭配建议。
-    这是一个模拟函数，你需要根据Qwen的实际API进行替换。
+    从 DeepSeek 大模型获取餐谱搭配建议。
+    (函数名保持为 get_recipe_suggestion_from_qwen 以兼容 app.py, 但内部已改为调用 DeepSeek)
 
     :param current_dishes: 当前已点菜品列表 (例如: ['宫保鸡丁', '米饭'])
     :param preferences: 用户偏好 (例如: '不吃辣', '素食者')
     :return: 大模型返回的建议文本，或者错误信息。
     """
-    print(f"准备向Qwen请求餐谱建议。当前菜品: {current_dishes}, 用户偏好: {preferences}")
+    print(f"准备向 DeepSeek 请求餐谱建议。当前菜品: {current_dishes}, 用户偏好: {preferences}")
 
-    # 1. 构建Prompt
-    # 这是非常关键的一步，Prompt的质量直接影响模型输出效果。
-    prompt = f"我正在点餐，已经选择了以下菜品：{', '.join(current_dishes)}。\n"
+    # 检查API密钥是否已配置
+    if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
+        print("警告: DeepSeek API Key 未配置或仍为占位符。请在 llm_service.py 中设置正确的 DEEPSEEK_API_KEY。")
+        return "抱歉，餐谱建议服务未正确配置API密钥。"
+
+    # 1. 构建用户Prompt
+    if current_dishes:
+        user_prompt = f"我正在点餐，已经选择了以下菜品：{', '.join(current_dishes)}。\n"
+    else:
+        user_prompt = "我正在点餐，但还没有选择任何菜品。\n"
+
     if preferences:
-        prompt += f"我的饮食偏好是：{preferences}。\n"
-    prompt += "请根据这些信息，为我推荐一些搭配的菜品或饮品，并简要说明理由。请以友好和专业的餐厅顾问口吻回答。"
+        user_prompt += f"我的饮食偏好是：{preferences}。\n"
+    user_prompt += "请根据这些信息，为我推荐一些搭配的菜品或饮品，并简要说明理由。请以友好和专业的餐厅顾问口吻回答。"
     
-    print(f"构建的Prompt: {prompt}")
-
-    # --------------------------------------------------------------------
-    # ---- 以下是模拟API调用的部分，你需要替换为真实的Qwen API调用 ----
-    # --------------------------------------------------------------------
-    # 假设Qwen API需要一个JSON payload
-    # payload = {
-    #     "prompt": prompt,
-    #     "model": "qwen2.5-0.5b-instruct", # 确认模型名称
-    #     "max_tokens": 150, # 根据需要调整
-    #     # 其他可能的参数，如 temperature, top_p 等
-    # }
-    # headers = {
-    #     "Authorization": f"Bearer {QWEN_API_KEY}", # 假设使用Bearer Token认证
-    #     "Content-Type": "application/json"
-    # }
+    # 打印构建好的Prompt，便于调试
+    # print(f"构建的用户Prompt: {user_prompt}")
 
     try:
-        # print(f"发送请求到 Qwen API: {QWEN_API_URL}")
-        # response = requests.post(QWEN_API_URL, json=payload, headers=headers, timeout=30) # 设置超时
-        # response.raise_for_status() # 如果HTTP状态码是4xx或5xx，则抛出异常
+        # 初始化 DeepSeek API 客户端
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
 
-        # result_data = response.json()
-        # suggestion = result_data.get("choices", [{}])[0].get("text", "抱歉，暂时无法获取建议。") 
-        # print(f"从Qwen API获取到响应: {result_data}")
-
-        # ---- 模拟响应 ----
-        if not current_dishes:
-            return "您还没有选择任何菜品呢！可以先看看我们的招牌菜，比如宫保鸡丁、鱼香肉丝，或者告诉我您的口味偏好，我来给您推荐。"
+        # 构建发送给API的消息体
+        messages = [
+            {"role": "system", "content": "你是一个友好的餐厅顾问，擅长根据顾客已选菜品和饮食偏好推荐搭配菜品和饮品。你的回答应该专业、简洁且直接针对用户的点餐需求。"},
+            {"role": "user", "content": user_prompt}
+        ]
         
-        mock_suggestion = f"基于您选择的 {', '.join(current_dishes)}"
-        if preferences:
-            mock_suggestion += f" 和您的偏好 '{preferences}'"
-        mock_suggestion += "，我为您推荐：\n"
+        # print(f"发送请求到 DeepSeek API (模型: deepseek-chat)") # 日志信息
+        # 调用 DeepSeek API
+        response = client.chat.completions.create(
+            model="deepseek-chat",  # 使用 "deepseek-chat" 模型
+            messages=messages,
+            stream=False, # 设置为 False 以获取完整响应
+            # max_tokens=250, # 可选：限制回复的最大长度，根据需要调整
+            # temperature=0.7 # 可选：调整回复的创造性，0.0 (最确定) 到 2.0 (最随机)
+        )
 
-        if "宫保鸡丁" in current_dishes and "酸辣汤" not in current_dishes:
-            mock_suggestion += "- **酸辣汤**: 宫保鸡丁口味浓郁，搭配一碗酸辣汤可以很好地开胃解腻，丰富口感层次。\n"
-        if "鱼香肉丝" in current_dishes and "米饭" not in current_dishes:
-            mock_suggestion += "- **米饭**: 鱼香肉丝是非常下饭的菜，配上米饭是绝佳的选择。\n"
-        if "可乐" not in current_dishes:
-            mock_suggestion += "- **冰镇可乐**: 如果您喜欢饮品，冰镇可乐可以带来清爽的口感，尤其适合搭配川菜。\n"
-        
-        if mock_suggestion.endswith("推荐：\n"): # 如果没有匹配到具体推荐
-             mock_suggestion += "这些菜品本身已经很棒了！如果您想尝试更多，可以考虑加一份清炒时蔬，平衡一下营养哦。"
-
-        suggestion = mock_suggestion
-        # ---- 模拟结束 ----
-
+        #提取建议内容
+        suggestion = response.choices[0].message.content
+        # print(f"从 DeepSeek API 获取到响应: {suggestion}") # 日志信息
         return suggestion
 
-    # except requests.exceptions.RequestException as e:
-    #     print(f"请求Qwen API时发生网络错误: {e}")
-    #     return "抱歉，连接餐谱建议服务时出现网络问题，请稍后再试。"
-    # except Exception as e:
-    #     print(f"处理Qwen API响应时发生错误: {e}")
-    #     return "抱歉，获取餐谱建议时出现内部错误，请稍后再试。"
-    except Exception as e: # 模拟部分的简单错误处理
-        print(f"模拟Qwen服务时发生错误: {e}")
-        return "抱歉，餐谱建议服务暂时不可用（模拟）。"
+    except APIConnectionError as e:
+        print(f"错误: 无法连接到 DeepSeek API: {e}")
+        return "抱歉，连接餐谱建议服务时出现网络问题，请稍后再试。"
+    except RateLimitError as e:
+        print(f"错误: DeepSeek API 请求超过速率限制: {e}")
+        return "抱歉，请求过于频繁，请稍后再试。"
+    except APIStatusError as e:
+        print(f"错误: DeepSeek API 返回错误状态码 {e.status_code}: {e.response}")
+        return f"抱歉，餐谱建议服务暂时不可用 (API 错误代码: {e.status_code})。"
+    except Exception as e: # 捕获其他潜在错误
+        print(f"错误: 调用 DeepSeek API 时发生未知错误: {e}")
+        return "抱歉，获取餐谱建议时出现内部错误，请稍后再试。"
 
 
 if __name__ == '__main__':
-    print("测试LLM服务模块...")
-    # 测试1: 有菜品，无偏好
-    dishes1 = ["宫保鸡丁", "米饭"]
-    suggestion1 = get_recipe_suggestion_from_qwen(dishes1)
-    print(f"\n建议1 (菜品: {dishes1}):\n{suggestion1}")
-
-    # 测试2: 有菜品，有偏好
-    dishes2 = ["麻婆豆腐"]
-    prefs2 = "不吃辣，喜欢清淡" # 这个偏好和麻婆豆腐有点冲突，看模型怎么说
-    suggestion2 = get_recipe_suggestion_from_qwen(dishes2, prefs2)
-    print(f"\n建议2 (菜品: {dishes2}, 偏好: {prefs2}):\n{suggestion2}")
+    print("测试LLM服务模块 (已切换到DeepSeek API)...")
     
-    # 测试3: 无菜品
-    dishes3 = []
-    suggestion3 = get_recipe_suggestion_from_qwen(dishes3)
-    print(f"\n建议3 (菜品: {dishes3}):\n{suggestion3}")
+    # 在运行测试前，请务必替换上面的 DEEPSEEK_API_KEY 为一个有效的密钥
+    if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
+        print("\n跳过API调用测试，因为DeepSeek API Key未设置或仍为占位符。")
+        print("请在 llm_service.py 文件顶部修改 DEEPSEEK_API_KEY 为您的真实密钥以进行测试。")
+        print("推荐通过环境变量设置API密钥。")
+    else:
+        print(f"\n准备使用 API Key: ...{DEEPSEEK_API_KEY[-4:]}") # 打印部分密钥以供确认（注意安全）
+        
+        # 测试用例1: 有菜品，无偏好
+        dishes1 = ["宫保鸡丁", "米饭"]
+        print(f"\n测试1 - 菜品: {dishes1}, 偏好: 无")
+        suggestion1 = get_recipe_suggestion_from_qwen(dishes1)
+        print(f"建议1:\n{suggestion1}")
+
+        # 测试用例2: 有菜品，有偏好
+        dishes2 = ["麻婆豆腐"]
+        prefs2 = "不吃辣，喜欢清淡" # 这个偏好和麻婆豆腐有点冲突，看模型怎么处理
+        print(f"\n测试2 - 菜品: {dishes2}, 偏好: {prefs2}")
+        suggestion2 = get_recipe_suggestion_from_qwen(dishes2, prefs2)
+        print(f"建议2:\n{suggestion2}")
+        
+        # 测试用例3: 无菜品，无偏好
+        dishes3 = []
+        print(f"\n测试3 - 菜品: 无, 偏好: 无")
+        suggestion3 = get_recipe_suggestion_from_qwen(dishes3)
+        print(f"建议3:\n{suggestion3}")
+
+        # 测试用例4: 无菜品，有偏好
+        dishes4 = []
+        prefs4 = "我想吃点辣的开胃菜，并且希望是素食。"
+        print(f"\n测试4 - 菜品: 无, 偏好: {prefs4}")
+        suggestion4 = get_recipe_suggestion_from_qwen(dishes4, prefs4)
+        print(f"建议4:\n{suggestion4}")
+
+        # 测试用例5: 多个菜品，复杂偏好
+        dishes5 = ["北京烤鸭", "扬州炒饭"]
+        prefs5 = "对海鲜过敏，希望搭配一些解腻的饮品"
+        print(f"\n测试5 - 菜品: {dishes5}, 偏好: {prefs5}")
+        suggestion5 = get_recipe_suggestion_from_qwen(dishes5, prefs5)
+        print(f"建议5:\n{suggestion5}")

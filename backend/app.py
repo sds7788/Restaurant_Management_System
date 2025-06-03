@@ -208,8 +208,112 @@ def admin_add_new_menu_item(current_admin_user):
         return jsonify({"error": "添加菜品时发生服务器错误", "message": str(e)}), 500
 
 # TODO: 实现管理员修改菜品 (@admin_required PUT /api/admin/menu/<item_id>)
-# TODO: 实现管理员删除菜品 (@admin_required DELETE /api/admin/menu/<item_id>)
+@app.route('/api/admin/menu/<int:item_id>', methods=['PUT']) # 新增 PUT 方法
+@admin_required
+def admin_update_menu_item(current_admin_user, item_id):
+    """管理员修改现有菜品"""
+    try:
+        # 首先检查菜品是否存在
+        existing_item = db.get_menu_item_by_id(item_id)
+        if not existing_item:
+            app.logger.warning(f"管理员 {current_admin_user['username']} 尝试更新不存在的菜品ID: {item_id}")
+            return jsonify({"error": "菜品未找到，无法更新"}), 404
 
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "请求体不能为空"}), 400
+
+        # 从请求数据中获取字段，如果字段不存在则使用现有值，以支持部分更新的可能
+        # 但前端目前是全量提交，所以这里可以简化为必须提供所有核心字段
+        name = data.get('name', existing_item['name'])
+        description = data.get('description', existing_item['description'])
+        price_str = data.get('price') # 价格以字符串形式接收，进行校验
+        category_id_str = data.get('category_id') # 分类ID以字符串形式接收，进行校验
+        image_url = data.get('image_url', existing_item['image_url'])
+        is_available = data.get('is_available', existing_item['is_available']) # 注意布尔值的处理
+
+        # 数据校验
+        if not name:
+            return jsonify({"error": "菜品名称不能为空"}), 400
+        
+        try:
+            price = float(price_str)
+            if price <= 0:
+                raise ValueError("价格必须为正数")
+        except (ValueError, TypeError):
+            return jsonify({"error": "价格格式无效或未提供", "message": "价格必须是正数。"}), 400
+
+        try:
+            category_id = int(category_id_str)
+            if not db.get_category_by_id(category_id): # 校验分类ID是否存在
+                return jsonify({"error": f"分类ID {category_id} 不存在"}), 404
+        except (ValueError, TypeError):
+            return jsonify({"error": "分类ID格式无效或未提供", "message": "分类ID必须是整数。"}), 400
+
+        if not isinstance(is_available, bool): # 确保 is_available 是布尔值
+             # 前端通常会发送 'true'/'false' 字符串或实际布尔值。JSON解析后通常是布尔值。
+             # 如果严格要求，可以添加转换逻辑，但一般 request.get_json() 会处理好。
+             if str(is_available).lower() == 'true':
+                 is_available = True
+             elif str(is_available).lower() == 'false':
+                 is_available = False
+             else:
+                return jsonify({"error": "is_available 字段必须是布尔值 (true/false)"}), 400
+
+
+        # 调用数据库函数更新菜品
+        affected_rows = db.update_menu_item(item_id, name, description, price, category_id, image_url, is_available)
+
+        if affected_rows is not None and affected_rows > 0:
+            app.logger.info(f"管理员 {current_admin_user['username']} 成功更新菜品ID: {item_id}")
+            updated_item = db.get_menu_item_by_id(item_id) # 获取更新后的菜品信息返回给前端
+            return jsonify({"message": "菜品更新成功", "item": updated_item}), 200
+        elif affected_rows == 0: # 菜品存在但数据未发生变化，或逻辑问题
+            app.logger.warning(f"管理员 {current_admin_user['username']} 更新菜品ID: {item_id} 时，数据未发生变化或未找到。")
+            # 这种情况理论上不应该发生，因为上面已经 get_menu_item_by_id 检查过了
+            # 如果数据完全一样，也算“更新成功”但无变化。可以返回200或特定的状态码。
+            return jsonify({"message": "菜品数据未发生变化", "item": existing_item}), 200
+        else: # affected_rows is None 表示数据库操作可能失败
+            app.logger.error(f"管理员 {current_admin_user['username']} 更新菜品ID: {item_id} 时发生数据库错误。")
+            return jsonify({"error": "更新菜品失败，数据库操作错误"}), 500
+
+    except Exception as e:
+        app.logger.error(f"管理员 {current_admin_user.get('username', 'N/A')} 更新菜品ID {item_id} 时发生服务器错误: {e}", exc_info=True)
+        return jsonify({"error": "更新菜品时发生服务器内部错误", "message": str(e)}), 500
+
+# TODO: 实现管理员删除菜品 (@admin_required DELETE /api/admin/menu/<item_id>)
+@app.route('/api/admin/menu/<int:item_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_menu_item(current_admin_user, item_id):
+    """管理员删除菜品"""
+    try:
+        # 首先检查菜品是否存在
+        item = db.get_menu_item_by_id(item_id)
+        if not item:
+            app.logger.warning(f"管理员 {current_admin_user['username']} 尝试删除不存在的菜品ID: {item_id}")
+            return jsonify({"error": "菜品未找到"}), 404
+
+        # 调用数据库函数删除菜品
+        # delete_menu_item 应该返回受影响的行数，或者在有外键约束阻止删除时返回特定值（如-1）
+        deleted_rows = db.delete_menu_item(item_id)
+
+        if deleted_rows == -1: # 特殊返回值表示因外键约束无法删除
+            app.logger.warning(f"管理员 {current_admin_user['username']} 尝试删除的菜品ID {item_id} 因被订单引用而无法删除")
+            return jsonify({"error": "无法删除菜品，该菜品可能已被订单引用。"}), 409 # 409 Conflict or 400 Bad Request
+        elif deleted_rows and deleted_rows > 0:
+            app.logger.info(f"管理员 {current_admin_user['username']} 成功删除菜品ID: {item_id}")
+            return jsonify({"message": f"菜品ID {item_id} 已成功删除"}), 200 # 或 204 No Content
+        elif deleted_rows == 0: # 逻辑上如果上面get_menu_item_by_id找到了，这里不应该为0，除非并发删除
+            app.logger.warning(f"管理员 {current_admin_user['username']} 尝试删除菜品ID {item_id}，但未找到或未删除任何行")
+            return jsonify({"error": "删除菜品失败，菜品可能已被删除或不存在"}), 404
+        else: # 包括 None 的情况，表示数据库操作可能失败
+            app.logger.error(f"管理员 {current_admin_user['username']} 删除菜品ID {item_id} 时发生未知数据库错误")
+            return jsonify({"error": "删除菜品时发生未知错误"}), 500
+
+    except Exception as e:
+        app.logger.error(f"管理员 {current_admin_user.get('username', 'N/A')} 删除菜品ID {item_id} 时发生服务器错误: {e}", exc_info=True)
+        return jsonify({"error": "删除菜品时发生服务器错误", "message": str(e)}), 500
+    
 # == 订单API ==
 @app.route('/api/orders', methods=['POST'])
 @token_required 

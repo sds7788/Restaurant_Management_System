@@ -132,6 +132,60 @@ def add_menu_item(name, description, price, category_id, image_url=None, is_avai
     params = (name, description, price, category_id, image_url, is_available)
     return execute_query(query, params, is_modify=True)
 
+def update_menu_item(item_id, name, description, price, category_id, image_url, is_available):
+    """更新现有菜品信息"""
+    query = """
+    UPDATE menu_items
+    SET name = %s,
+        description = %s,
+        price = %s,
+        category_id = %s,
+        image_url = %s,
+        is_available = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = %s
+    """
+    params = (name, description, price, category_id, image_url, is_available, item_id)
+    # is_modify 返回受影响的行数
+    affected_rows = execute_query(query, params, is_modify=True, dictionary_cursor=False)
+    return affected_rows # 如果更新成功且菜品存在，通常返回 1
+
+def delete_menu_item(item_id):
+    """
+    删除菜品。
+    会先检查是否有订单项关联此菜品（根据外键的RESTRICT约束）。
+    如果有关联，MySQL本身会阻止删除并抛出错误。
+    如果想在应用层面处理，可以先查询。
+    返回：删除的行数，如果因外键约束等数据库层面错误则可能返回None或抛出异常。
+          这里我们返回-1表示因业务逻辑（被引用）而无法删除。
+    """
+    # 可选：显式检查订单项引用，如果外键是 SET NULL 或 NO ACTION，则此检查更重要
+    # 如果是 RESTRICT，数据库层面会直接报错，可以捕获该特定错误
+    # check_query = "SELECT COUNT(*) as count FROM order_items WHERE menu_item_id = %s"
+    # result = execute_query(check_query, (item_id,), fetch_one=True)
+    # if result and result['count'] > 0:
+    #     print(f"无法删除菜品ID {item_id}，因为它已在订单中使用。")
+    #     return -1 # 特殊返回值表示因约束无法删除
+        
+    query = "DELETE FROM menu_items WHERE id = %s"
+    try:
+        affected_rows = execute_query(query, (item_id,), is_modify=True, dictionary_cursor=False) # is_modify 返回影响的行数
+        if affected_rows is None: # execute_query 在错误时可能返回 None
+            return 0 # 或者可以抛出自定义异常
+        return affected_rows
+    except mysql.connector.Error as e:
+        # 检查是否为外键约束错误
+        # MySQL错误码1451: Cannot delete or update a parent row: a foreign key constraint fails
+        if e.errno == 1451:
+            print(f"数据库外键约束阻止删除菜品ID {item_id}，因为它已被订单引用。")
+            return -1 # 特殊标记，表示因外键约束失败
+        else:
+            print(f"删除菜品ID {item_id} 时发生数据库错误: {e}")
+            raise # 重新抛出其他数据库错误，让上层处理
+    except Exception as e:
+        print(f"删除菜品ID {item_id} 时发生未知错误: {e}")
+        raise
+
 # --- 订单管理函数 ---
 def create_order(total_amount, items_data, user_id=None, customer_name="匿名用户", payment_method=None, delivery_address=None, notes=None):
     """创建新订单"""
