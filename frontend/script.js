@@ -658,6 +658,43 @@ async function fetchAndShowOrderDetails(orderId) {
         showModal(`获取订单详情请求失败: ${error.message}`, true);
     }
 }
+async function handlePayment(orderId) {
+    // 弹出一个确认框，防止用户误触
+    if (!confirm(`您确定要支付订单 #${orderId} 吗？`)) {
+        return;
+    }
+
+    try {
+        // 构建用于支付的API端点URL
+        const url = `${API_BASE_URL}/orders/${orderId}/pay`; // 假设后端支付API端点是这个
+
+        // 使用 fetchWithAuth 发送一个POST请求来模拟支付
+        const response = await fetchWithAuth(url, {
+            method: 'POST',
+            // 如果后端需要，可以在body中附加支付信息
+            // body: JSON.stringify({ payment_method: 'some_method' })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // 如果后端成功处理了支付
+            showModal(`订单 #${orderId} 支付成功！`);
+
+            // **核心步骤**: 重新获取并渲染我的订单列表
+            // 这将会从后端获取最新的订单状态，并自动更新UI
+            fetchMyOrders(myOrdersCurrentPage);
+
+        } else {
+            // 如果后端返回错误
+            showModal(`支付失败: ${result.error || '未知错误'}`, true);
+        }
+    } catch (error) {
+        // 处理网络请求等错误
+        console.error('支付请求失败:', error);
+        showModal(`支付请求失败: ${error.message}`, true);
+    }
+}
 
 
 // --- LLM建议 ---
@@ -749,5 +786,7 @@ window.removeFromCart = removeFromCart;
 window.updateCartQuantity = updateCartQuantity;
 window.updateSpecialRequest = updateSpecialRequest;
 window.fetchAndShowOrderDetails = fetchAndShowOrderDetails;
+window.handlePayment = handlePayment;
 window.closeModal = closeModal; // 确保通用关闭按钮可用
 window.closeAuthModal = closeAuthModal; // 确保认证模态框关闭按钮可用
+
