@@ -789,3 +789,4 @@ window.fetchAndShowOrderDetails = fetchAndShowOrderDetails;
 window.handlePayment = handlePayment;
 window.closeModal = closeModal; // 确保通用关闭按钮可用
 window.closeAuthModal = closeAuthModal; // 确保认证模态框关闭按钮可用
+
