@@ -3,7 +3,7 @@ import os
 from openai import OpenAI, APIConnectionError, RateLimitError, APIStatusError
 
 # DeepSeek API 配置
-DEEPSEEK_API_KEY = "sk-303f28a8f16e4326ad72a7898f0b076f"  # <--- 请替换为您的真实 DeepSeek API Key
+DEEPSEEK_API_KEY = ""  # <--- 请替换为您的真实 DeepSeek API Key
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 def get_recipe_suggestion_from_qwen(current_dishes, preferences="", full_menu=None):
