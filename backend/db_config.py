@@ -4,7 +4,7 @@
 DB_CONFIG = {
     'host': 'localhost',        # MySQL服务器地址
     'user': 'root',    # MySQL用户名
-    'password': 'sds205322',# MySQL密码
+    'password': '',# MySQL密码
     'database': 'restaurant_db',# 数据库名称
     'port': 3306                # MySQL端口号, 默认3306
 }
